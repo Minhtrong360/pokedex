@@ -12,9 +12,11 @@ router.get("/", function (req, res, next) {
 });
 
 router.get("/pokemons", function (req, res, next) {
-  const { type, name } = req.query;
+  const { type, name, page, limit } = req.query;
 
-  let pokemonFilter = pokemons.data;
+  let pokemonFilter = JSON.parse(
+    fs.readFileSync("./archive/pokemons.json")
+  ).data;
   if (type) {
     pokemonFilter = pokemonFilter?.filter((pokemon) =>
       pokemon?.types?.includes(type.toLowerCase())
@@ -25,6 +27,9 @@ router.get("/pokemons", function (req, res, next) {
       pokemon?.name?.includes(name.toLowerCase())
     );
   }
+  let skip = (Number(page) - 1) * limit;
+  pokemonFilter.slice(0, skip);
+
   res.status(200).json(pokemonFilter);
 });
 
@@ -34,38 +39,41 @@ router.get("/pokemons/:id", function (req, res, next) {
   let idFilter = Number(id);
 
   let pokemonFilter = pokemons.data;
+
+  let indexID = pokemonFilter
+    .map((pokemon) => {
+      return pokemon.id;
+    })
+    .indexOf(idFilter);
+
   let filterArray = {};
   if (1 < idFilter && idFilter < pokemons.totalPokemons) {
-    pokemonFilter = pokemonFilter?.filter(
-      (pokemon) =>
-        pokemon.id === idFilter ||
-        pokemon.id === idFilter - 1 ||
-        pokemon.id === idFilter + 1
-    );
     filterArray = {
-      pokemon: pokemonFilter[1],
-      previousPokemon: pokemonFilter[0],
-      nextPokemon: pokemonFilter[2],
+      pokemon: pokemonFilter[indexID],
+      previousPokemon: pokemonFilter[indexID - 1],
+      nextPokemon: pokemonFilter[indexID + 1],
     };
   }
   if (idFilter === 1) {
-    pokemonFilter = pokemonFilter?.filter(
-      (pokemon) =>
-        pokemon.id === idFilter ||
-        pokemon.id === Number(pokemons.totalPokemons) ||
-        pokemon.id === idFilter + 1
-    );
     filterArray = {
-      pokemon: pokemonFilter[0],
-      previousPokemon: pokemonFilter[2],
-      nextPokemon: pokemonFilter[1],
+      pokemon: pokemonFilter[indexID],
+      previousPokemon: pokemonFilter.slice(-1)[0],
+      nextPokemon: pokemonFilter[indexID + 1],
     };
   }
   if (idFilter === pokemons.totalPokemons) {
+    filterArray = {
+      pokemon: pokemonFilter[indexID],
+      previousPokemon: pokemonFilter[indexID - 1],
+      nextPokemon: pokemonFilter.slice(1),
+    };
+  }
+
+  if (idFilter > pokemons.totalPokemons) {
     pokemonFilter = pokemonFilter?.filter(
       (pokemon) =>
-        pokemon.id === Number(pokemons.totalPokemons) ||
-        pokemon.id === idFilter - 1 ||
+        pokemon.id === Number(idFilter) ||
+        pokemon.id === Number(pokemons.totalPokemons - 1) ||
         pokemon.id === Number(1)
     );
     filterArray = {
@@ -80,16 +88,17 @@ router.get("/pokemons/:id", function (req, res, next) {
 
 router.post("/pokemons", function (req, res, next) {
   const { name, id, types, url } = req.body;
+
   try {
     if (!id || !name || !types || !url) {
       const error = new Error("Missing required data.");
       error.statusCode = 404;
-      next(error);
+      throw error;
     }
     if (types?.length > 2) {
       const error = new Error("Pokémon can only have one or two types.");
       error.statusCode = 404;
-      next(error);
+      throw error;
     }
 
     const pokemonTypes = [
@@ -115,41 +124,40 @@ router.post("/pokemons", function (req, res, next) {
     if (!types?.map((type) => pokemonTypes.includes(type))) {
       const error = new Error("Pokémon’s type is invalid.");
       error.statusCode = 404;
-      next(error);
+      throw error;
     }
 
     let dataPokemons = JSON.parse(fs.readFileSync("./archive/pokemons.json"));
 
-    pokemons?.data?.map((pokemon) => {
-      if (id === pokemon.id || name === pokemon.name) {
-        const error = new Error("The Pokémon already exists.");
-        error.statusCode = 401;
-        next(error);
-      } else {
-        const newPokemon = {
-          id: id,
-          name: name,
-          types: types,
-          height: height ? height : faker.datatype.number({ max: 100 }),
-          weight: weight ? weight : faker.datatype.number({ max: 100 }),
-          url: url,
-          description: description ? description : faker.company.catchPhrase(),
-          abilities: abilities
-            ? abilities
-            : faker.company.catchPhraseAdjective(),
-        };
-        res.status(200).send(newPokemon);
+    if (dataPokemons?.data.find((pokemon) => pokemon.id === Number(id))) {
+      const error = new Error("The Pokémon already exists.");
+      error.statusCode = 500;
+      throw error;
+    }
+    if (dataPokemons?.data.find((pokemon) => pokemon.name === name)) {
+      const error = new Error("The Pokémon already exists.");
+      error.statusCode = 500;
+      throw error;
+    }
 
-        dataPokemons.data.push(newPokemon);
-        dataPokemons.totalPokemons = dataPokemons.data.length;
+    const newPokemon = {
+      id: Number(id),
+      name: name,
+      types: types,
+      height: faker.datatype.number({ max: 100 }),
+      weight: faker.datatype.number({ max: 100 }),
+      url: url,
+      description: faker.company.catchPhrase(),
+      abilities: faker.company.catchPhraseAdjective(),
+    };
+    res.status(200).send(newPokemon);
 
-        fs.writeFileSync(
-          "./archive/pokemons.json",
-          JSON.stringify(dataPokemons)
-        );
-      }
-    });
+    dataPokemons.data.push(newPokemon);
+    dataPokemons.totalPokemons = dataPokemons.data.length;
+
+    fs.writeFileSync("./archive/pokemons.json", JSON.stringify(dataPokemons));
   } catch (error) {
+    // res.status(error.statusCode).send(error.message);
     next(error);
   }
 });

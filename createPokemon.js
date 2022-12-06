@@ -52,7 +52,6 @@ const createPokemon = async () => {
   data.data = newData;
   data.totalPokemons = newData.length;
   fs.writeFileSync("./archive/pokemons.json", JSON.stringify(data));
-  console.log("done");
 };
 
 createPokemon();
