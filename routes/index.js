@@ -14,9 +14,8 @@ router.get("/", function (req, res, next) {
 router.get("/pokemons", function (req, res, next) {
   const { type, name, page, limit } = req.query;
 
-  let pokemonFilter = JSON.parse(
-    fs.readFileSync("./archive/pokemons.json")
-  ).data;
+  let pokemonFilter = pokemons.data;
+
   if (type) {
     pokemonFilter = pokemonFilter?.filter((pokemon) =>
       pokemon?.types?.includes(type.toLowerCase())
@@ -27,10 +26,11 @@ router.get("/pokemons", function (req, res, next) {
       pokemon?.name?.includes(name.toLowerCase())
     );
   }
-  let skip = (Number(page) - 1) * limit;
-  pokemonFilter.slice(0, skip);
+  let skip = (Number(page) - 1) * Number(limit);
 
-  res.status(200).json(pokemonFilter);
+  let final = pokemonFilter.slice(skip, Number(limit) + skip);
+
+  res.status(200).json(final);
 });
 
 router.get("/pokemons/:id", function (req, res, next) {

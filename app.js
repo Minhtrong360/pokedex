@@ -31,7 +31,7 @@ app.use(function (req, res, next) {
 
 // error handler
 app.use(function (err, req, res, next) {
-  res.status(err.statusCode).send({ errors: { message: err.message } });
+  res.status(err.statusCode || 400).send({ errors: { message: err.message } });
 });
 
 module.exports = app;
