@@ -26,11 +26,18 @@ router.get("/pokemons", function (req, res, next) {
       pokemon?.name?.includes(name.toLowerCase())
     );
   }
-  let skip = (Number(page) - 1) * Number(limit);
 
-  let final = pokemonFilter.slice(skip, Number(limit) + skip);
+  if (page && limit) {
+    let skip = (Number(page) - 1) * Number(limit);
 
-  res.status(200).json(final);
+    let final = pokemonFilter.slice(skip, Number(limit) + skip);
+
+    res.status(200).json(final);
+  }
+
+  if (!page || limit) {
+    res.status(200).json(pokemonFilter);
+  }
 });
 
 router.get("/pokemons/:id", function (req, res, next) {
@@ -69,18 +76,21 @@ router.get("/pokemons/:id", function (req, res, next) {
     };
   }
 
-  if (idFilter > pokemons.totalPokemons) {
-    pokemonFilter = pokemonFilter?.filter(
-      (pokemon) =>
-        pokemon.id === Number(idFilter) ||
-        pokemon.id === Number(pokemons.totalPokemons - 1) ||
-        pokemon.id === Number(1)
-    );
+  if (
+    idFilter > pokemons.totalPokemons &&
+    pokemons.data.find((pokemon) => pokemon.id === Number(id))
+  ) {
     filterArray = {
-      pokemon: pokemonFilter[2],
-      previousPokemon: pokemonFilter[1],
-      nextPokemon: pokemonFilter[0],
+      pokemon: pokemonFilter[indexID],
+      previousPokemon: pokemonFilter[indexID - 1],
+      nextPokemon: pokemonFilter[indexID + 1] || pokemonFilter[0],
     };
+  }
+
+  if (!pokemons.data.find((pokemon) => pokemon.id === Number(id))) {
+    const error = new Error("The Pokémon does not exists.");
+    error.statusCode = 400;
+    throw error;
   }
 
   res.status(200).json(filterArray);
